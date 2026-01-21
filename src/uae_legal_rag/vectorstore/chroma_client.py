@@ -1,8 +1,9 @@
-"""Local persistent Chroma vector store."""
+"""Local persistent Chroma vector store (cloud-safe)."""
 
 from __future__ import annotations
 
 import gc
+import os
 import shutil
 import time
 from pathlib import Path
@@ -11,13 +12,34 @@ from langchain_chroma import Chroma
 from langchain_core.embeddings import Embeddings
 
 
-def get_chroma(embeddings: Embeddings, persist_dir: str | None, collection_name: str) -> Chroma:
-    """Create a Chroma vector store.
+def _is_streamlit_cloud() -> bool:
+    """
+    Detect Streamlit Cloud environment safely.
+    Streamlit always sets STREAMLIT_RUNTIME in cloud.
+    """
+    return os.environ.get("STREAMLIT_RUNTIME") is not None
 
-    - If `persist_dir` is provided, Chroma persists locally.
-    - If `persist_dir` is None, Chroma runs in-memory (useful for tests).
+
+def get_chroma(
+    embeddings: Embeddings,
+    persist_dir: str | None,
+    collection_name: str,
+) -> Chroma:
+    """
+    Create a Chroma vector store.
+
+    - Streamlit Cloud  → ALWAYS in-memory (no persistence)
+    - Local machine    → Persistent if persist_dir is provided
     """
 
+    # ✅ STREAMLIT CLOUD: force in-memory (THIS FIXES YOUR ERROR)
+    if _is_streamlit_cloud():
+        return Chroma(
+            collection_name=collection_name,
+            embedding_function=embeddings,
+        )
+
+    # ✅ LOCAL DEVELOPMENT: persistent Chroma
     if persist_dir:
         Path(persist_dir).mkdir(parents=True, exist_ok=True)
         return Chroma(
@@ -26,6 +48,7 @@ def get_chroma(embeddings: Embeddings, persist_dir: str | None, collection_name:
             embedding_function=embeddings,
         )
 
+    # ✅ Fallback: in-memory
     return Chroma(
         collection_name=collection_name,
         embedding_function=embeddings,
@@ -37,7 +60,6 @@ def reset_chroma_collection(vs: Chroma | None) -> None:
     if vs is None:
         return
     try:
-        # Get all document IDs and delete them
         result = vs.get()
         if result and result.get("ids"):
             vs.delete(ids=result["ids"])
@@ -46,11 +68,9 @@ def reset_chroma_collection(vs: Chroma | None) -> None:
 
 
 def reset_chroma_dir(persist_dir: str, vs: Chroma | None = None) -> None:
-    """Reset Chroma directory. On Windows, close connections first."""
-    # First try to clear the collection if we have a reference
+    """Reset Chroma directory (local only)."""
     reset_chroma_collection(vs)
 
-    # Force garbage collection to release file handles
     gc.collect()
     time.sleep(0.2)
 
@@ -59,5 +79,4 @@ def reset_chroma_dir(persist_dir: str, vs: Chroma | None = None) -> None:
         try:
             shutil.rmtree(p)
         except PermissionError:
-            # On Windows, files may still be locked - just clear the collection instead
             pass
