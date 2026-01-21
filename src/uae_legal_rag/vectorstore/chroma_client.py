@@ -1,4 +1,4 @@
-"""Local persistent Chroma vector store (cloud-safe)."""
+"""Chroma vector store (Streamlit Cloud safe)."""
 
 from __future__ import annotations
 
@@ -12,12 +12,11 @@ from langchain_chroma import Chroma
 from langchain_core.embeddings import Embeddings
 
 
-def _is_streamlit_cloud() -> bool:
+def _is_streamlit() -> bool:
     """
-    Detect Streamlit Cloud environment safely.
-    Streamlit always sets STREAMLIT_RUNTIME in cloud.
+    Reliable detection for Streamlit (local + cloud) for Streamlit <= 1.53
     """
-    return os.environ.get("STREAMLIT_RUNTIME") is not None
+    return "STREAMLIT_SERVER_RUN_ON_SAVE" in os.environ
 
 
 def get_chroma(
@@ -26,20 +25,19 @@ def get_chroma(
     collection_name: str,
 ) -> Chroma:
     """
-    Create a Chroma vector store.
-
-    - Streamlit Cloud  → ALWAYS in-memory (no persistence)
-    - Local machine    → Persistent if persist_dir is provided
+    RULES:
+    - Streamlit (local or cloud): ALWAYS in-memory Chroma
+    - Non-Streamlit usage: persistent if persist_dir is provided
     """
 
-    # ✅ STREAMLIT CLOUD: force in-memory (THIS FIXES YOUR ERROR)
-    if _is_streamlit_cloud():
+    # ✅ Streamlit detected → force in-memory (NO persistence)
+    if _is_streamlit():
         return Chroma(
             collection_name=collection_name,
             embedding_function=embeddings,
         )
 
-    # ✅ LOCAL DEVELOPMENT: persistent Chroma
+    # ✅ Non-Streamlit usage → persistent allowed
     if persist_dir:
         Path(persist_dir).mkdir(parents=True, exist_ok=True)
         return Chroma(
@@ -48,7 +46,6 @@ def get_chroma(
             embedding_function=embeddings,
         )
 
-    # ✅ Fallback: in-memory
     return Chroma(
         collection_name=collection_name,
         embedding_function=embeddings,
@@ -56,7 +53,6 @@ def get_chroma(
 
 
 def reset_chroma_collection(vs: Chroma | None) -> None:
-    """Delete all documents from the collection (safe for Windows)."""
     if vs is None:
         return
     try:
@@ -68,7 +64,6 @@ def reset_chroma_collection(vs: Chroma | None) -> None:
 
 
 def reset_chroma_dir(persist_dir: str, vs: Chroma | None = None) -> None:
-    """Reset Chroma directory (local only)."""
     reset_chroma_collection(vs)
 
     gc.collect()
