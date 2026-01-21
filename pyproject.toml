@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uae-legal-rag"
+version = "0.1.0"
+description = "Portfolio UAE-focused legal document RAG assistant (not legal advice)"
+requires-python = ">=3.13"
+readme = "README.md"
+
+dependencies = [
+  # UI + config
+  "streamlit==1.53.0",
+  "python-dotenv==1.2.1",
+  "pypdf==6.6.0",
+  "pydantic==2.12.5",
+
+  # LangChain / LangGraph
+  "langchain==1.2.6",
+  "langchain-core==1.2.7",
+  "langchain-openai==1.1.7",
+  "langchain-text-splitters==1.1.0",
+  "langgraph==1.0.6",
+
+  # Vector store (local persistent)
+  "chromadb==1.4.1",
+  "langchain-chroma==1.1.0",
+
+  # Tokenization
+  "tiktoken==0.12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.0.2",
+  "ruff==0.14.13",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
